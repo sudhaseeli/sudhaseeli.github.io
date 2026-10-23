@@ -308,8 +308,13 @@ Education:   <span class="c">MS MIS · Iowa State · 3.8</span>
         </article>
         <article class="proj glass" data-pour>
           <canvas id="cv-eraser" aria-label="Interactive before and after preview of an object being removed from a video frame"></canvas>
-          <div class="body"><p class="hint">← move across the frame to wipe →</p><h3>AI Video Eraser</h3><p>Finds and removes unwanted objects from videos. Detection, segmentation and matching run frame by frame, then the gap is filled in.</p>
-            <div class="tags"><span>Python</span><span>OpenCV</span><span>YOLO</span><span>SAM</span><span>CLIP</span></div></div>
+          <div class="body"><p class="hint">← move across the frame to wipe →</p><h3>AI Video Eraser</h3><p>Removes a person, car or anything else from a short video, entirely in the browser. Draw a box or type what to erase: DETR finds it, SAM cuts an exact mask, and the gap is filled with real background from nearby frames, compensating for camera motion.</p>
+            <p class="hint" style="color:var(--mist)">Measured against a known clean background: 12.7 → 36.3 dB PSNR in the erased area, with 100% filled from real footage.</p>
+            <div class="tags"><span>JavaScript</span><span>Transformers.js</span><span>DETR</span><span>SAM</span><span>WebAssembly</span><span>Computer vision</span></div>
+            <div class="links2">
+              <a class="btn primary" href="https://sudhaseeli.github.io/ai-video-eraser/" target="_blank" rel="noopener" data-magnet><span>Live demo ↗</span></a>
+              <a class="btn" href="https://github.com/sudhaseeli/ai-video-eraser" target="_blank" rel="noopener" data-magnet><span>Code on GitHub ↗</span></a>
+            </div></div>
         </article>
         <article class="proj glass" data-pour>
           <canvas id="cv-rag" aria-label="Interactive map of past incidents; the cursor acts as a new incident and the nearest matches are highlighted"></canvas>
