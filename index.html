@@ -151,7 +151,11 @@ section.block{padding-block:88px 24px}
 .more b{font:400 clamp(20px,2.2vw,26px) var(--f-display);font-variation-settings:"SOFT" 100}
 .more b em{color:var(--rose)}
 .more span{font:400 13px var(--f-mono);color:var(--champagne)}
-@media (max-width:820px){.projects{grid-template-columns:1fr}}
+.proj.feature{grid-column:1/-1;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+.proj.feature canvas{height:100%;min-height:380px;aspect-ratio:auto;border-bottom:0;border-right:1px solid var(--line);cursor:pointer}
+.proj .new{justify-self:start;font:600 10.5px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:999px;background:var(--champagne);color:var(--night)}
+.proj .links2{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+@media (max-width:820px){.projects{grid-template-columns:1fr}.proj.feature{grid-template-columns:1fr}.proj.feature canvas{min-height:0;aspect-ratio:1/1;border-right:0;border-bottom:1px solid var(--line)}}
 
 /* education */
 .edu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
@@ -281,8 +285,27 @@ Education:   <span class="c">MS MIS · Iowa State · 3.8</span>
 
   <section class="block" id="projects" aria-label="Projects">
     <div class="wrap">
-      <div class="head"><p class="eyebrow">Projects</p><h2>Selected <em>work</em></h2><p>Both previews are live. Move across them to see what each project does.</p></div>
+      <div class="head"><p class="eyebrow">Projects</p><h2>Selected <em>work</em></h2><p>Every preview is live. Move across them to see what each project does.</p></div>
       <div class="projects">
+        <article class="proj feature glass" data-pour>
+          <canvas id="cv-ks" aria-label="Interactive cluster map: the cursor acts as the agent, hovering a failing pod shows its diagnosis and clicking approves the fix"></canvas>
+          <div class="body">
+            <span class="new">New · open source</span>
+            <p class="hint">your cursor is the agent · hover a red pod, click to approve its fix</p>
+            <h3>KubeSleuth · Agentic SRE for Kubernetes</h3>
+            <p>An AI agent that investigates Kubernetes incidents the way an on-call engineer would. When an alert fires, it works out the root cause on its own and proposes one fix, and <em>nothing changes until a human approves it</em>. It finishes with a structured incident report.</p>
+            <ul class="steps">
+              <li><b>Investigate:</b> reads pods, crash logs, events, rollout history and Prometheus metrics through read-only tools, which are also served over MCP.</li>
+              <li><b>Fix safely:</b> proposes one change from an allowlist (roll back, raise a memory limit, cordon a node…) behind a human approval gate. Its RBAC role can’t read Secrets.</li>
+              <li><b>Measured:</b> a built-in eval of six realistic incidents (OOMKilled, crash loops, bad image tags, bad rollouts, disk pressure, broken probes). The offline playbook diagnoses and resolves 6/6, and the same eval scores the Claude brain.</li>
+            </ul>
+            <div class="tags"><span>Python</span><span>Claude · Anthropic SDK</span><span>MCP</span><span>Kubernetes</span><span>Prometheus</span><span>pytest</span><span>GitHub Actions</span></div>
+            <div class="links2">
+              <a class="btn primary" href="https://sudhaseeli.github.io/kubesleuth/" target="_blank" rel="noopener" data-magnet><span>Live demo ↗</span></a>
+              <a class="btn" href="https://github.com/sudhaseeli/kubesleuth" target="_blank" rel="noopener" data-magnet><span>Code on GitHub ↗</span></a>
+            </div>
+          </div>
+        </article>
         <article class="proj glass" data-pour>
           <canvas id="cv-eraser" aria-label="Interactive before and after preview of an object being removed from a video frame"></canvas>
           <div class="body"><p class="hint">← move across the frame to wipe →</p><h3>AI Video Eraser</h3><p>Finds and removes unwanted objects from videos. Detection, segmentation and matching run frame by frame, then the gap is filled in.</p>
@@ -602,6 +625,88 @@ function rag(now){
   c.fillStyle = 'rgba(244,237,230,.75)'; c.font = '400 11px "IBM Plex Mono", monospace'; c.fillText(`fix: ${CL[best].fix}`, 24, by + 38);
 }
 
+/* KubeSleuth cluster map */
+const KS = setup('#cv-ks');
+KS.q = [.5, .5];
+const KS_BAD = {
+  1: { why: 'OOMKilled · exit 137', cause: 'memory limit 256Mi too low after cache change', fix: 'patch_memory_limit 512Mi' },
+  6: { why: 'CrashLoopBackOff', cause: 'config key renamed in rev 9', fix: 'rollback_deployment to rev 8' },
+  9: { why: 'Readiness probe 404', cause: 'probe moved to /health/ready', fix: 'rollback_deployment to rev 4' }
+};
+const KS_NAMES = ['checkout-api','checkout-api','cart-svc','search-api','ranking-svc','auth-gw','ledger-worker','report-builder','storefront','session-svc','storefront','metrics-agent'];
+let ksFixed = new Set(), ksFlash = null, ksResetAt = 0;
+KS.cv.addEventListener('click', () => {
+  const t = KS.target;
+  if (t != null && KS_BAD[t] && !ksFixed.has(t)){ ksFixed.add(t); ksFlash = { i: t, at: performance.now() }; }
+});
+function ksLayout(w, h){
+  const cols = 3, padX = 18, top = 46, bottom = 92, gap = 14;
+  const nw = (w - padX*2 - gap*(cols - 1))/cols, nh = h - top - bottom;
+  const pods = [];
+  for (let n = 0; n < cols; n++){
+    const x0 = padX + n*(nw + gap);
+    for (let k = 0; k < 4; k++) pods.push({ i: n*4 + k, x: x0 + nw/2, y: top + 34 + (k + .5)*(nh - 40)/4, node: n });
+  }
+  return { cols, padX, top, nw, nh, gap, pods };
+}
+function kube(now){
+  const o = KS; if (!o.vis) return; const c = o.ctx, w = o.w, h = o.h, s = now*.001;
+  const tq = o.hover ? [o.mx, o.my] : [.5 + Math.sin(s*.4)*.32, .45 + Math.sin(s*.73)*.25];
+  o.q[0] = lerp(o.q[0], tq[0], reduce ? 1 : .14); o.q[1] = lerp(o.q[1], tq[1], reduce ? 1 : .14);
+  if (ksFixed.size === Object.keys(KS_BAD).length){ if (!ksResetAt) ksResetAt = now + 3500; else if (now > ksResetAt){ ksFixed = new Set(); ksResetAt = 0; } }
+  const L = ksLayout(w, h), qx = o.q[0]*w, qy = o.q[1]*h, lens = Math.min(w, h)*.16;
+  c.setTransform(dpr,0,0,dpr,0,0); c.fillStyle = '#1A1320'; c.fillRect(0,0,w,h);
+  c.font = '500 10.5px "IBM Plex Mono", monospace'; c.fillStyle = 'rgba(244,237,230,.6)'; c.textAlign = 'left';
+  c.fillText('KUBESLEUTH · cluster prod-us-west', 18, 26);
+  c.textAlign = 'right'; c.fillStyle = ksFixed.size === 3 ? '#9DB3A2' : '#E08E8A';
+  c.fillText(ksFixed.size === 3 ? 'all incidents resolved' : `${3 - ksFixed.size} incident${3 - ksFixed.size > 1 ? 's' : ''} open`, w - 18, 26);
+  c.textAlign = 'left';
+  for (let n = 0; n < L.cols; n++){
+    const x0 = L.padX + n*(L.nw + L.gap);
+    c.strokeStyle = 'rgba(244,237,230,.12)'; c.setLineDash([4,4]); c.lineWidth = 1;
+    c.beginPath(); c.roundRect ? c.roundRect(x0, L.top, L.nw, L.nh, 12) : c.rect(x0, L.top, L.nw, L.nh); c.stroke(); c.setLineDash([]);
+    c.fillStyle = 'rgba(188,175,188,.7)'; c.font = '400 10px "IBM Plex Mono", monospace'; c.fillText(`node ip-10-0-${n + 1}-${12 + n*9}`, x0 + 10, L.top + 18);
+  }
+  let target = null, tdist = Infinity;
+  for (const p of L.pods){ const d = Math.hypot(p.x - qx, p.y - qy); if (d < tdist){ tdist = d; target = p.i; } }
+  o.target = tdist < lens ? target : null;
+  for (const p of L.pods){
+    const bad = KS_BAD[p.i] && !ksFixed.has(p.i), d = Math.hypot(p.x - qx, p.y - qy), inLens = d < lens;
+    const pw = Math.min(L.nw - 20, 170), ph = 22, x = p.x - pw/2, y = p.y - ph/2;
+    const pulse = bad ? .5 + .5*Math.sin(s*4 + p.i) : 0;
+    c.fillStyle = inLens ? 'rgba(244,237,230,.09)' : 'rgba(244,237,230,.04)';
+    c.strokeStyle = bad ? `rgba(224,142,138,${.35 + pulse*.4})` : (inLens ? 'rgba(230,203,160,.55)' : 'rgba(244,237,230,.1)');
+    c.lineWidth = bad || inLens ? 1.4 : 1;
+    c.beginPath(); c.roundRect ? c.roundRect(x, y, pw, ph, 7) : c.rect(x, y, pw, ph); c.fill(); c.stroke();
+    const flash = ksFlash && ksFlash.i === p.i && now - ksFlash.at < 900;
+    c.fillStyle = bad ? '#E08E8A' : (flash ? '#E6CBA0' : '#9DB3A2');
+    c.beginPath(); c.arc(x + 11, p.y, 3.6 + (bad ? pulse*1.4 : 0), 0, TAU); c.fill();
+    c.fillStyle = 'rgba(244,237,230,.82)'; c.font = '400 10.5px "IBM Plex Mono", monospace';
+    c.fillText(KS_NAMES[p.i], x + 21, p.y + 3.5);
+    if (inLens){ c.strokeStyle = 'rgba(230,203,160,.45)'; c.lineWidth = 1; c.beginPath(); c.moveTo(qx, qy); c.lineTo(x + 11, p.y); c.stroke(); }
+  }
+  // the agent's lens
+  c.strokeStyle = 'rgba(230,203,160,.5)'; c.lineWidth = 1.2; c.beginPath(); c.arc(qx, qy, lens, 0, TAU); c.stroke();
+  c.fillStyle = '#F4EDE6'; c.beginPath(); c.arc(qx, qy, 4.5, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(244,237,230,.3)'; c.beginPath(); c.arc(qx, qy, 10 + Math.sin(s*3)*2, 0, TAU); c.stroke();
+  // diagnosis panel
+  const by = h - 78, bw = w - 36, t = o.target;
+  c.fillStyle = 'rgba(18,13,23,.88)'; c.fillRect(18, by, bw, 62); c.strokeStyle = 'rgba(230,203,160,.4)'; c.lineWidth = 1; c.strokeRect(18.5, by + .5, bw, 62);
+  c.font = '600 12px "IBM Plex Mono", monospace';
+  if (t != null && KS_BAD[t] && !ksFixed.has(t)){
+    c.fillStyle = '#E08E8A'; c.fillText(`${KS_NAMES[t]} · ${KS_BAD[t].why}`, 30, by + 20);
+    c.fillStyle = 'rgba(244,237,230,.78)'; c.font = '400 11px "IBM Plex Mono", monospace'; c.fillText(`root cause: ${KS_BAD[t].cause}`, 30, by + 37);
+    c.fillStyle = '#E6CBA0'; c.fillText(`⚑ proposed: ${KS_BAD[t].fix} · click to approve`, 30, by + 53);
+  } else if (t != null && KS_BAD[t]){
+    c.fillStyle = '#9DB3A2'; c.fillText(`✓ ${KS_NAMES[t]} · fix approved and applied`, 30, by + 20);
+    c.fillStyle = 'rgba(244,237,230,.78)'; c.font = '400 11px "IBM Plex Mono", monospace'; c.fillText(`${KS_BAD[t].fix} · verified: no restarts for 10m`, 30, by + 37);
+  } else {
+    c.fillStyle = 'rgba(244,237,230,.85)'; c.fillText(t != null ? `${KS_NAMES[t]} · healthy, 0 restarts` : 'agent idle · move over a pod to investigate', 30, by + 20);
+    c.fillStyle = 'rgba(188,175,188,.85)'; c.font = '400 11px "IBM Plex Mono", monospace';
+    c.fillText('read-only tools · one fix at a time · human approval required', 30, by + 37);
+  }
+}
+
 /* copy email */
 $('#copy').addEventListener('click', e => {
   const btn = e.currentTarget;
@@ -611,11 +716,11 @@ $('#copy').addEventListener('click', e => {
 });
 
 /* sizing + loop */
-function resize(){ sizeGoo(); measure(); fit(ER); fit(RG); }
+function resize(){ sizeGoo(); measure(); fit(ER); fit(RG); fit(KS); }
 resize(); addEventListener('resize', resize);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
 function tick(now){
-  blob(now); letters(now); bubbles(now); magnets(); portrait(); timeline(); eraser(now); rag(now);
+  blob(now); letters(now); bubbles(now); magnets(); portrait(); timeline(); eraser(now); rag(now); kube(now);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
